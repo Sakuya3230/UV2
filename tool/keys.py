@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-キー (Delete / Backspace / Enter / Esc / Tab / 1～6 = ガイドの種類 / B = ペイントのブラシの半径 / > < = 塗った範囲を広げる・狭める) と、今の修飾キー。Qt のイベントフィルター (UVPathCut の
+キー (Delete / Backspace / Enter / Esc / Tab / 1～6 = ガイドの種類 / B = ペイントのブラシの半径 / S = ブラシの形 / > < = 塗った範囲を広げる・狭める) と、今の修飾キー。Qt のイベントフィルター (UVPathCut の
 tool/keys.py と同じ方式)。
 
     keys.install(callback)     # ツールを有効にしたとき。callback(キーの名前) -> 受け取ったら True
@@ -15,6 +15,9 @@ tool/keys.py と同じ方式)。
 
 - B (押している間だけ。HELD に入れる): volumeColorBrush と同じ。押したとき・離したときを受け取り、
   ほかのアプリに移ったら忘れる。wants("hold:b") が False なら Maya に渡す (B はソフト選択など)
+- V (押している間だけ): 編集で点をドラッグしている間に押していると、途中の点 (と閉じたガイドの点) もほかの
+  ガイドに乗せる (Maya の V = 点へのスナップと同じ感覚。Alt はビューのカメラの操作に取られるので使わない)。
+  wants("hold:v") は編集のモードでガイドを選んでいるときだけ (そうでなければ Maya に渡す)
 - 1〜6 は Maya のホットキー (表示の滑らかさ) と重なるが、ツールの対象があるときはこちらで受け取る
 - MPxContext にはキーのイベントが無い (Esc だけは abortAction) ので、アプリケーションにフィルターを付ける
 - 受け取るのは、マウスが 3D ビューの上で、文字の入力欄にフォーカスが無く、修飾キーが無いときだけ
@@ -24,15 +27,15 @@ tool/keys.py と同じ方式)。
 """
 import maya.cmds as cmds
 
-__all__ = ["install", "uninstall", "installed", "pointer_over_view", "modifiers", "single_shot", "KEYS", "KEYS_CTRL",
+__all__ = ["install", "uninstall", "installed", "pointer_over_view", "modifiers", "alt_held", "single_shot", "KEYS", "KEYS_CTRL",
            "HOLD_KEYS", "HELD"]
 
 KEYS = {"Key_Delete": "delete", "Key_Backspace": "back", "Key_Return": "finish", "Key_Enter": "finish",
         "Key_Escape": "cancel", "Key_Tab": "mode", "Key_1": "tool:ring", "Key_2": "tool:freehand", "Key_3": "tool:line", "Key_4": "tool:curve",
-        "Key_5": "tool:paint", "Key_6": "tool:bridge", "Key_X": "symmetry",
+        "Key_5": "tool:paint", "Key_6": "tool:bridge", "Key_X": "symmetry", "Key_S": "brushShape",
         "Key_Greater": "region:grow", "Key_Period": "region:grow", "Key_Less": "region:shrink", "Key_Comma": "region:shrink"}
 SHIFT_OK = ("region:grow", "region:shrink")   # Shift を押していても受け取る (> / < は Shift+. / Shift+,)
-HOLD_KEYS = {"Key_B": "b"}                 # 押している間だけのキー (ペイントの B+ドラッグ = 半径)
+HOLD_KEYS = {"Key_B": "b", "Key_V": "v"}   # 押している間だけのキー (ペイントの B+ドラッグ = 半径、V+点のドラッグ = 途中の点もガイドに乗せる)
 HELD = set()                               # 今押している HOLD_KEYS の名前
 KEYS_CTRL = {"Key_Z": "undo"}       # Ctrl と組み合わせるもの (描いている線の最後の点を戻す)
 _FILTER = []
@@ -62,6 +65,14 @@ def modifiers():
         return False, False
     state = QtWidgets.QApplication.queryKeyboardModifiers()
     return bool(state & QtCore.Qt.ShiftModifier), bool(state & QtCore.Qt.ControlModifier)
+
+
+def alt_held():
+    """今 Alt を押しているか (1 リングの円をドラッグ中に動かす)。Qt のアプリケーションが無ければ False。"""
+    QtCore, QtWidgets = _qt()
+    if QtWidgets.QApplication.instance() is None:
+        return False
+    return bool(QtWidgets.QApplication.queryKeyboardModifiers() & QtCore.Qt.AltModifier)
 
 
 def single_shot(ms, callback):

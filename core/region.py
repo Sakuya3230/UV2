@@ -6,6 +6,9 @@
     stamp(mesh, faces, center, radius)                # ブラシを 1 回押す (その場で変える。erase=True で消す)
     stamp(mesh, faces, center, radius, hit_face=f)    # サーフェス: 当たった面から表面に沿って radius 以内
     brush_faces(mesh, center, radius, hit_face)       # ブラシの中の面 (押したら塗られる面。下見に使う)
+    square_faces(candidates, screen, center, half, front, angle)   # 四角のブラシ: 画面の四角に中心が入る表向きの面
+    connected_faces(mesh, start, allowed)            # start の面から、allowed の面だけを通ってつながる面
+    face_normals(mesh)                                # 面の法線 (Newell。長さ 1)
     loops = region_loops(mesh, faces)                 # 囲む線 [(点 (n, 3), 閉じているか)]。塗った面の境目のエッジの上
     edge_loops = region_edge_loops(mesh, faces)       # 同じ線を頂点の番号の列で [(頂点の番号 (n,), 閉じているか)]
     mirrored, unmatched = mirror_faces(mesh, faces, plane, tolerance)   # 対称の相手の塗った面
@@ -38,7 +41,7 @@ try:
 except Exception:
     csr_matrix = None
 
-__all__ = ["face_count", "face_centers", "stamp", "brush_faces", "region_loops", "region_edge_loops", "painted_faces",
+__all__ = ["face_count", "face_centers", "face_normals", "square_faces", "connected_faces", "stamp", "brush_faces", "region_loops", "region_edge_loops", "painted_faces",
            "painted_triangles", "faces_from_vertex_weights", "mirror_faces", "grow_faces", "shrink_faces",
            "surface_distance", "sparse_faces", "dense_faces", "dense_weights", "LEVEL"]
 
@@ -74,6 +77,60 @@ def face_centers(mesh):
         np.add.at(total, face, mesh.points[connects])
         centers = mesh._region_centers = total / np.maximum(counts, 1)[:, None]
     return centers
+
+
+def face_normals(mesh):
+    """面の法線 (F, 3)。多角形は Newell の方法 (角ごとの外積の和)。長さ 1 (潰れた面は 0)。"""
+    normals = getattr(mesh, "_region_normals", None)
+    if normals is None:
+        counts, connects, face, starts = _faces(mesh)
+        corner = np.arange(len(connects))
+        following = starts[face] + (corner - starts[face] + 1) % counts[face]
+        cross = np.cross(mesh.points[connects], mesh.points[connects[following]])
+        total = np.zeros((len(counts), 3))
+        np.add.at(total, face, cross)
+        length = np.linalg.norm(total, axis=1)
+        normals = mesh._region_normals = total / np.maximum(length, 1e-30)[:, None]
+    return normals
+
+
+def square_faces(candidates, screen, center, half, front=None, angle=0.0):
+    """四角のブラシ: 候補の面 candidates のうち、面の中心の画面の位置 screen ((n, 2)。candidates と同じ順) が、
+    画面の四角 (中心 center、半分の幅 half、画面の横から angle (ラジアン) だけ回した向き。0 なら上下左右にそろう) に
+    入るもの。front ((n,) の bool) を渡すと、表向き (カメラの方を向く) の面だけ (四角は画面で見た形なので、裏側の面は
+    塗らない)。"""
+    candidates = np.asarray(candidates, dtype=np.int64)
+    screen = np.asarray(screen, dtype=np.float64).reshape(-1, 2)
+    dx, dy = screen[:, 0] - center[0], screen[:, 1] - center[1]
+    c, s = np.cos(angle), np.sin(angle)
+    inside = (np.abs(dx * c + dy * s) <= half) & (np.abs(-dx * s + dy * c) <= half)
+    inside &= np.isfinite(screen).all(axis=1)
+    if front is not None:
+        inside &= np.asarray(front, dtype=bool)
+    return candidates[inside]
+
+
+def connected_faces(mesh, start, allowed):
+    """面 start から、allowed (面の番号の並び) の面だけを通って (頂点を共有する面へ) たどり着く面 (start を含む。
+    番号の昇順)。四角のブラシのサーフェス: 画面の四角に入る表向きの面のうち、当たった面とつながるものだけを塗る
+    (表面に沿った距離で切らないので、カメラに対して傾いた面 (奥行きのある所) も四角の端まで塗れる)。"""
+    counts, connects, _face, starts = _faces(mesh)
+    indptr, owners = _vertex_faces(mesh)
+    mask = np.zeros(len(counts), dtype=bool)
+    mask[np.asarray(allowed, dtype=np.int64)] = True
+    start = int(start)
+    mask[start] = True
+    seen = np.zeros(len(counts), dtype=bool)
+    seen[start] = True
+    face_ptr = np.concatenate([starts, [len(connects)]])
+    frontier = np.array([start], dtype=np.int64)
+    while len(frontier):
+        vertices = np.unique(_gather(face_ptr, connects, frontier)[0])
+        near = np.unique(_gather(indptr, owners, vertices)[0])
+        near = near[mask[near] & ~seen[near]]
+        seen[near] = True
+        frontier = near
+    return np.flatnonzero(seen)
 
 
 def _center_tree(mesh):

@@ -9,7 +9,8 @@
 """
 import collections
 
-__all__ = ["Action", "ACTIONS", "TOGGLES", "EDIT_ONLY", "action_by_id", "symmetry_label", "route_label"]
+__all__ = ["Action", "ACTIONS", "TOGGLES", "EDIT_ONLY", "action_by_id", "symmetry_label", "route_label",
+           "brush_shape_label"]
 
 Action = collections.namedtuple("Action", "id label description")
 
@@ -18,6 +19,8 @@ ACTIONS = [
            "Maya の面が使われ、両側に作る (ツールの対称を切り替えても変わらない)"),
     Action("bridgeRoute", "通り方 最短", "つなぎ線の通り方を 最短 / 谷 に切り替える。新しいつなぎ線に効き、編集で選んだ"
            "つなぎ線 (と相手) も作り直す (1 回の Undo)"),
+    Action("brushShape", "ブラシ 円", "ペイントのブラシの形を 円 -> 四角 -> 四角 (向き) と切り替える (S キー)。四角は"
+           "画面で見た四角の中に中心が入る表向きの面を塗る。四角 (向き) はストロークの向きに回る"),
     Action("cut", "UV をカット", "シーム (ガイドから求めたエッジ) で UV を切る。全メッシュで 1 回の Undo"),
     Action("selectEdges", "エッジを選択", "シームのエッジを Maya で選ぶ (ほかのツールで使う・確かめる)"),
     Action("fromEdges", "境界をガイドに", "Maya で選んだエッジ (選んでいなければ今の UV の境界すべて) を、境界のガイドに"
@@ -35,7 +38,7 @@ ACTIONS = [
 
 
 EDIT_ONLY = ("bridge", "segmentMode", "ringReset", "join", "split")   # 編集のモードだけの操作 (作成のモードではビューのボタンを出さない)
-TOGGLES = ("symmetry", "bridgeRoute")    # 切り替えのボタン (ビューの上の段。ツール設定のウィンドウでは設定の欄で切り替える)
+TOGGLES = ("symmetry", "bridgeRoute", "brushShape")    # 切り替えのボタン (ビューの上の段。ツール設定のウィンドウでは設定の欄で切り替える)
 
 
 def symmetry_label(on, axis, maya_axis=None):
@@ -51,6 +54,11 @@ def symmetry_label(on, axis, maya_axis=None):
 def route_label(route):
     """通り方のボタンの文字: 「通り方 最短」/「通り方 谷」。"""
     return "通り方 谷" if route == "valley" else "通り方 最短"
+
+
+def brush_shape_label(shape):
+    """ブラシの形のボタンの文字: 「ブラシ 円」/「ブラシ 四角」/「ブラシ 四角 向き」。"""
+    return {"square": "ブラシ 四角", "squareStroke": "ブラシ 四角 向き"}.get(shape, "ブラシ 円")
 
 
 def action_by_id(ident):

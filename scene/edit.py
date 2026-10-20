@@ -6,6 +6,7 @@
 
     作る:   add_rings(found) / add_lines(targets, rays) / add_line_hits(targets, hits, closed, anchors=)
             add_curve(target, anchors, closed) / add_region(target, faces) / add_bridge(target, start, end, stops)
+            circle_hits(targets, rays) + add_circle(target, anchors)   # 1 リングの Ctrl+ドラッグ (円を落とす)
             add_edge_guides([(target, chains)])
     点:     move_points(target, ident, {点の番号: 点}) / insert_point(target, ident, 点) / delete_points(...)
             moved_path(target, guides, ident, moves)        # 動かした形 (書かない。ドラッグ中のプレビュー)
@@ -42,6 +43,7 @@ from ..core.valley import DEFAULT_STRENGTH, valley_weights
 from .store import read_guides, write_guides
 
 __all__ = ["find_rings", "add_rings", "add_lines", "add_line_hits", "add_curve", "add_region", "add_bridge",
+           "circle_hits", "add_circle",
            "add_edge_guides", "cast_rays", "curve_points", "RingFound", "SHIFT_SPACINGS",
            "move_points", "moved_path", "insert_point", "delete_points", "extend_path", "join_guides", "split_guide",
            "cut_segments", "set_segment_modes", "set_end_attach", "segment_modes",
@@ -427,6 +429,29 @@ def add_curve(target, anchors, closed=False, undo_name="カーブのガイド"):
     count = len(anchors) if closed else len(anchors) - 1
     path = GuidePath([Node(a) for a in anchors], [Segment(pm.CURVE) for _ in range(count)], closed, pm.ORIGIN_CURVE)
     if not _rebuild(target, path, range(count)):
+        return {}
+    guides = _copy(target)
+    return _commit([(target, guides, _add(target, guides, path))], undo_name)
+
+
+def circle_hits(targets, rays):
+    """画面の円の点の視線 rays を、カメラの向きに落とした所: (target, オブジェクト空間の点 (n, 3)) か None。
+    全部が同じメッシュに当たったときだけ (はみ出す・別のメッシュにかかるなら None。作らない)。"""
+    hits = cast_rays(targets, rays)
+    if not hits or any(hit is None for hit in hits) or len({hit[0] for hit in hits}) != 1:
+        return None
+    return targets[hits[0][0]], np.array([hit[1] for hit in hits], dtype=np.float64)
+
+
+def add_circle(target, anchors, undo_name="円のガイド"):
+    """画面の円を落とした点 anchors (オブジェクト空間。円の順) を通る閉じた曲線のガイドを足す (点 + 曲線の区間。
+    種類はリング、平面は持たない。対称の相手も。1 回の Undo)。{シェイプ: [番号]}。"""
+    anchors = np.asarray(anchors, dtype=np.float64).reshape(-1, 3)
+    if len(anchors) < 3:
+        return {}
+    path = GuidePath([Node(a) for a in anchors], [Segment(pm.CURVE) for _ in range(len(anchors))], True,
+                     pm.ORIGIN_CIRCLE, pristine=False)
+    if not _rebuild(target, path, range(len(anchors))):
         return {}
     guides = _copy(target)
     return _commit([(target, guides, _add(target, guides, path))], undo_name)

@@ -16,7 +16,7 @@ from .. import constants as c
 
 __all__ = ["Setting", "Settings", "SettingsError", "DEFINITIONS", "CHOICE", "BOOL", "COLOR", "FLOAT", "MODE_CREATE", "MODE_EDIT",
            "definition", "defaults", "normalize", "TOOL_RING", "TOOL_FREEHAND", "TOOL_LINE", "TOOL_CURVE",
-           "TOOL_PAINT", "TOOL_BRIDGE", "BRUSH_SURFACE", "BRUSH_VOLUME", "ROUTE_SHORTEST", "ROUTE_VALLEY"]
+           "TOOL_PAINT", "TOOL_BRIDGE", "BRUSH_SURFACE", "BRUSH_VOLUME", "BRUSH_CIRCLE", "BRUSH_SQUARE", "BRUSH_SQUARE_STROKE", "ROUTE_SHORTEST", "ROUTE_VALLEY"]
 
 CHOICE = "choice"
 BOOL = "bool"
@@ -27,6 +27,7 @@ MODE_EDIT = "edit"
 TOOL_RING, TOOL_FREEHAND, TOOL_LINE, TOOL_CURVE, TOOL_PAINT = "ring", "freehand", "line", "curve", "paint"
 TOOL_BRIDGE = "bridge"
 BRUSH_SURFACE, BRUSH_VOLUME = "surface", "volume"
+BRUSH_CIRCLE, BRUSH_SQUARE, BRUSH_SQUARE_STROKE = "circle", "square", "squareStroke"
 ROUTE_SHORTEST, ROUTE_VALLEY = "shortest", "valley"
 
 Setting = collections.namedtuple(
@@ -49,8 +50,9 @@ DEFINITIONS = [
     Setting("lineColor", COLOR, c.LINE_COLOR, (), (), "線の色", "フリーハンド・ライン", "-lc",
             "フリーハンドとラインの補助線 (つないだ線で直線を含むものも) の色"),
     Setting("curveColor", COLOR, c.CURVE_COLOR, (), (), "線の色", "カーブ", "-cvc", "カーブのガイドの色"),
-    Setting("regionColor", COLOR, c.REGION_COLOR, (), (), "線の色", "ペイント", "-rgc", "確定したペイントの囲む線の色"),
-    Setting("paintLineColor", COLOR, c.PAINT_LINE_COLOR, (), (), "塗っている線", "ペイント", "-plc",
+    Setting("regionColor", COLOR, c.REGION_COLOR, (), (), "確定した線", "ペイント", "-rgc",
+            "確定したペイントのガイド (Enter で囲む線にしたあとの線) の色"),
+    Setting("paintLineColor", COLOR, c.PAINT_LINE_COLOR, (), (), "塗っている間の線", "ペイント", "-plc",
             "塗っている間と、編集で選んだペイントの囲む線の色 (前面に描く)"),
     Setting("paintFillColor", COLOR, c.PAINT_COLOR, (), (), "塗った範囲", "ペイント", "-pfc",
             "塗った範囲を重ねて見せる色 (半透明)"),
@@ -60,6 +62,15 @@ DEFINITIONS = [
             "ブラシ", "ペイント", "-bm",
             "サーフェス = 当たった面から表面に沿って半径の中を塗る (すぐ近くでも、つながっていない面・裏側は塗らない)。"
             "ボリューム = ブラシの球の中の頂点をすべて塗る (指の間・薄い所では、近くの別の面も塗る)"),
+    Setting("brushShape", CHOICE, BRUSH_CIRCLE, (BRUSH_CIRCLE, BRUSH_SQUARE, BRUSH_SQUARE_STROKE),
+            ("円", "四角", "四角 (向き)"), "ブラシの形", "ペイント",
+            "-bs", "円 = ブラシの半径の中を塗る。四角 = 画面で見た四角 (画面の上下左右にそろう、一辺 = 半径 x 2) の中に"
+            "中心が入る表向きの面を塗る (角のある所・まっすぐな縁を塗りやすい)。四角 (向き) = 四角をストローク (マウスの"
+            "動き) の向きに回す。S キー・ビューの上の段のボタンで 円 -> 四角 -> 四角 (向き) と切り替え"),
+    Setting("brushBackDepth", FLOAT, 0.5, (0.0, 5.0), (), "裏向きの面の奥行き", "ペイント", "-bbd",
+            "四角のブラシで、カメラの方を向いていない面 (しわ・凹凸の向こう側の斜面) も、カメラから見て手前の表面から"
+            "この奥行き (ブラシの半径の何倍か) の中なら塗る。それより奥 (指の裏など、厚みの分だけ奥にある面) は塗らない。"
+            "0 なら向いていない面は塗らない"),
     Setting("bridgeRoute", CHOICE, ROUTE_SHORTEST, (ROUTE_SHORTEST, ROUTE_VALLEY), ("最短", "谷"), "通り方", "つなぎ線",
             "-brr", "新しいつなぎ線の通り方 (ビューの上の段のボタンでも切り替え。編集で選んだつなぎ線にも効く)。"
             "最短 = エッジの長さの最短パス、谷 = くぼみ (筋肉の境・折れ目・板の継ぎ目) を選んで通る (少し遠回りでも)"),
@@ -70,7 +81,15 @@ DEFINITIONS = [
             "つなぎ線 (2 本のガイドの間をエッジの最短パスでつないだ線) の色"),
     Setting("edgeColor", COLOR, c.EDGE_COLOR, (), (), "線の色", "境界", "-egc",
             "境界のガイド (UV の切れ目・選んだエッジから変換したもの) の色"),
-    Setting("brushColor", COLOR, c.BRUSH_COLOR, (), (), "ブラシの円", "ペイント", "-bc", "ブラシの円の色"),
+    Setting("brushColor", COLOR, c.BRUSH_COLOR, (), (), "ブラシの円", "ペイント", "-bc", "ブラシの円 (四角) の枠の色"),
+    Setting("brushPreview", BOOL, True, (), (), "下見を表示", "ペイント", "-bp",
+            "ブラシの下に、今押したら塗られる面 (Ctrl なら消される面) を薄い色で見せる"),
+    Setting("brushPreviewColor", COLOR, c.BRUSH_PREVIEW_COLOR, (), (), "下見の色", "ペイント", "-bpc",
+            "下見 (押したら塗られる面) の色"),
+    Setting("brushEraseColor", COLOR, c.BRUSH_ERASE_COLOR, (), (), "下見の色 (消す)", "ペイント", "-bec",
+            "Ctrl を押しているときの下見 (押したら消される面) の色"),
+    Setting("brushPreviewAlpha", FLOAT, 0.3, (0.05, 1.0), (), "下見の不透明度", "ペイント", "-bpa",
+            "下見の濃さ (0.05〜1。1 で不透明)"),
     Setting("selectedColor", COLOR, c.SELECTED_COLOR, (), (), "選んだ線", "編集", "-slc", "選んだガイド (と相手) の色"),
     Setting("hoverColor", COLOR, c.HOVER_COLOR, (), (), "マウスの下の線", "編集", "-hvc", "マウスの下のガイドの色"),
     Setting("handleColor", COLOR, c.HANDLE_COLOR, (), (), "点の印", "編集", "-hdc", "線の点の印の色"),

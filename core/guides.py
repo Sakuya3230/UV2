@@ -37,8 +37,8 @@ BRIDGE = "bridge"
 KINDS = (RING, LINE, CURVE, REGION, EDGE, BRIDGE)
 FORMAT = "SeamGuide.guides"
 VERSION = 2
-KIND_OF_ORIGIN = {"ring": RING, "freehand": LINE, "line": LINE, "curve": CURVE, "paint": REGION, "edge": EDGE,
-                  "bridge": BRIDGE}
+KIND_OF_ORIGIN = {"ring": RING, "circle": RING, "freehand": LINE, "line": LINE, "curve": CURVE, "paint": REGION,
+                  "edge": EDGE, "bridge": BRIDGE}   # circle = 1 リングの Ctrl+ドラッグの円 (平面を持たない輪)
 
 
 class Guide(object):

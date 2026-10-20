@@ -35,7 +35,7 @@ from .geometry import polyline_length
 __all__ = ["Node", "Attach", "Segment", "GuidePath", "paths_from_v1", "rebuild_segment", "simplify_indices",
            "even_indices", "CURVE", "STRAIGHT", "SHORTEST", "VALLEY", "FIXED", "MODES", "EDGE_MODES",
            "ORIGIN_RING", "ORIGIN_FREEHAND", "ORIGIN_LINE", "ORIGIN_CURVE", "ORIGIN_PAINT", "ORIGIN_BRIDGE",
-           "ORIGIN_EDGE", "RING_NODES", "SIMPLIFY_SPACINGS", "PathEntry", "convert_v1_set", "entries_to_json",
+           "ORIGIN_EDGE", "ORIGIN_CIRCLE", "RING_NODES", "SIMPLIFY_SPACINGS", "PathEntry", "convert_v1_set", "entries_to_json",
            "entries_from_json", "line_length", "path_seam", "segment_seam", "node_vertex"]
 
 CURVE, STRAIGHT, SHORTEST, VALLEY, FIXED = "curve", "straight", "shortest", "valley", "fixed"
@@ -43,6 +43,7 @@ MODES = (CURVE, STRAIGHT, SHORTEST, VALLEY, FIXED)
 EDGE_MODES = (SHORTEST, VALLEY)
 ORIGIN_RING, ORIGIN_FREEHAND, ORIGIN_LINE, ORIGIN_CURVE = "ring", "freehand", "line", "curve"
 ORIGIN_PAINT, ORIGIN_BRIDGE, ORIGIN_EDGE = "paint", "bridge", "edge"
+ORIGIN_CIRCLE = "circle"           # 1 リングの Ctrl+ドラッグ: 画面の円をカメラの向きに落とした閉じた曲線
 RING_NODES = 4             # リングの点の数 (断面の輪の上の等間隔)
 SIMPLIFY_SPACINGS = 2.0    # ペイント・境界の点の間引きの許容値 (点の間隔の何倍)
 MIN_CLOSED_NODES = 4       # 閉じた線の点の最少 (足りなければ等間隔で足す)

@@ -7,7 +7,7 @@
     draw_polyline(drawMgr, points, closed, rgb, width, eye, cm_key)
     draw_stroke(drawMgr, points2d)          # 描いている線 (画面の 2D)
     draw_handles(drawMgr, handles)          # 点の印 [(x, y, 色)] (黒いふちの付いた塗った四角)
-    mesh = overlay_mesh(points, alphas, rgb, cm_key)   # 重ね塗りの三角形 (ペイントの塗った範囲)
+    mesh = overlay_mesh(vertices, triangles, rgb, alpha, cm_key)   # 重ね塗りの三角形 (ペイントの塗った範囲。1 色)
     draw_triangles(drawMgr, mesh)
     plane = ScreenPlane(view, depth)        # 画面のピクセルを、カメラの前の平面の上のワールドの点に戻す
     render_buttons(drawMgr, plane, layout, buttons, first_handle, cm_key)   # ビューのボタン (押せる部品)
@@ -164,25 +164,25 @@ def draw_handles(drawMgr, handles, size=HANDLE_PIXELS):
     drawMgr.endDrawable()
 
 
-def overlay_mesh(points, alphas, rgb, cm_key):
-    """重ね塗りの三角形 (MPointArray, MColorArray)。points (k, 3, 3) ワールド、alphas (k,) 不透明度。
-    作るのが重いので、呼ぶ側が覚えておく。"""
-    base = display_color(rgb, cm_key)
-    alphas = np.asarray(alphas, dtype=np.float64)
-    colors = np.empty((len(alphas), 4))
-    colors[:, :3] = base
-    colors[:, 3] = alphas
-    flat = np.asarray(points, dtype=np.float64).reshape(-1, 3).tolist()
-    return om.MPointArray(flat), om.MColorArray(np.repeat(colors, 3, axis=0).tolist())
+def overlay_mesh(vertices, triangles, rgb, alpha, cm_key):
+    """重ね塗りの三角形 (MPointArray, MUintArray, MColor): 頂点 vertices (m, 3) ワールドと、三角形の頂点の番号
+    triangles (k, 3)、1 色 rgb・不透明度 alpha。作るのが重いので、呼ぶ側が覚えておく。
+    頂点を三角形どうしで共有し、色は配列にせず 1 色にする (前は三角形の角ごとに点と色を作り、9 万三角形で約 600 ms
+    かかった。Python のリストから Maya の配列を作る所がほとんど。共有と 1 色で 55〜100 ms)。"""
+    vertices = np.asarray(vertices, dtype=np.float64).reshape(-1, 3)
+    indices = np.asarray(triangles, dtype=np.int64).reshape(-1)
+    return (om.MPointArray(vertices.tolist()), om.MUintArray(indices.tolist()),
+            om.MColor(tuple(display_color(rgb, cm_key)) + (float(alpha),)))
 
 
 def draw_triangles(drawMgr, mesh):
-    """overlay_mesh の三角形を描く (頂点ごとの色。半透明)。"""
-    points, colors = mesh
-    if not len(points):
+    """overlay_mesh の三角形を描く (1 色。半透明)。"""
+    points, indices, color = mesh
+    if not len(points) or not len(indices):
         return
     drawMgr.beginDrawable(omr.MUIDrawManager.kNonSelectable, 0)
-    drawMgr.mesh(omr.MUIDrawManager.kTriangles, points, None, colors)
+    drawMgr.setColor(color)
+    drawMgr.mesh(omr.MUIDrawManager.kTriangles, points, None, None, indices)
     drawMgr.endDrawable()
 
 
